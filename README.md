@@ -2,7 +2,7 @@
 
 Server Patching Script
 </br>
-Start-ServerPatching</br>
+Functions: WriteLog, Start-ServerPatching</br>
 Author: James Auchterlonie</br>
 Version: 1.0</br>
 Last Modified: 12/04/18 3:30PM</br>
