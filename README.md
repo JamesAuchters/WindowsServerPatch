@@ -12,8 +12,8 @@ Summary: </br>
 </br>
 Usage: </br>
     Patch server with no reboot - Start-ServerPatching -Server <Server Name> -LogFile <LogFile></br>
-    Patch server and restart - Start-ServerPatching -Server <Server Name> -LogFile <LogFile> -postPatchingAction 1</br>
-    Patch server and shutdown - Start-ServerPatching -Server <Server Name> -LogFile <LogFile> -postPatchingAction 2</br>
+    Patch server and restart - Start-ServerPatching -Server <Server Name> -LogFile <LogFile> -postPatchingAction restart</br>
+    Patch server and shutdown - Start-ServerPatching -Server <Server Name> -LogFile <LogFile> -postPatchingAction shutdown</br>
 </br>
 Changelog:</br>
     0.1 - Basic WMI to get and complete server patches</br>
@@ -21,6 +21,9 @@ Changelog:</br>
     0.3 - Replaced Write-Host with Logging Function</br>
     0.4 - Included logic to handle shutdowns/restarts/errors</br>
     1.0 - Basic Version Completed</br>
+    1.1 - Updated ugly switch with neater hashtable logic</br>
+    1.2 - Updated initialisation to hanfle lack of WMI connectivity</br>
+    1.3 - Added help file</br>
 </br>
 Return Values: </br>
     Complete - Patches completed, not rebooted/shutdown</br>
@@ -31,3 +34,4 @@ Return Values: </br>
     Shutdown - Server has been shutdown</br>
     ServerNotFound - Server connection checks failed</br>
     Usage info - Basic details to use command.</br>
+    RemoteWMINotAvailable - Unable to access server using WMI
