@@ -1,11 +1,11 @@
 # WindowsServerPatch
 
-Server Patching Script
+Server Patching Module
 </br>
-Functions: WriteLog, Start-ServerPatching</br>
+Functions: WriteLog, Start-ServerPatching, Get-PatchStatus</br>
 Author: James Auchterlonie</br>
 Version: 1.0</br>
-Last Modified: 12/04/18 3:30PM</br>
+Last Modified: 13/04/18 4:00PM</br>
 </br>
 Summary: </br>
     This Function utilises the SCCM WMI module to install patches that are currently in an available state. </br>
