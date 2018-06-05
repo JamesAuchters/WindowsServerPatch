@@ -1,0 +1,52 @@
+<!-- DESCRIPTION
+
+This XML file is used to declare complex patching runs for the Start-ComplexPatch commandlet.
+Devices are declared in groups, with actions contained inside these groups.
+These actions can be declared on cluster or server objects.
+If a cluster is declared, the script will complete failovers of the cluster when patching a server. 
+You must declare the "Final" endpoint of the contained service.
+Server flags can be declared to match the options available in Start-ServerPatching
+Services can be stopped or started at the server level by using the <service> tag.
+
+Below is an example XML with possible combinations.
+<Group Type="Group" Name="Front End">
+    <Cluster Type="Cluster" ActiveNode="Server2">
+        <Server Type="Server" HostName="Server1" Action="Patch" Flags="">
+            <Service Type="Service" Name="vmtools" Action="Stop/Start"></service>
+        </Server>
+        <Server Type="Server" HostName="Server2" Action="Patch" Flags="">
+            <Service Type="Service" Name="vmtools" Action="Stop/Start"></service>
+        </Server>
+    </Cluster>
+</Group>
+<Group Type="Group" Name="Back End">
+        <Server Type="Server" HostName="Server1" Action="Patch" Flags="">
+            <Service Type="Service" Name="vmtools" Action="Stop/Start"></service>
+        </Server>
+        <Server Type="Server" HostName="Server2" Action="Patch" Flags="">
+            <Service Type="Service" Name="vmtools" Action="Stop/Start"></service>
+        </Server>
+</Group>
+
+END OF DESCRIPTION
+-->
+<Patching>
+    <Group Name="Front End">
+        <Cluster Type="Cluster" ActiveNode="">
+            <Server Type="Server" HostName="Server1" Action="Patch" Flags="-postpatchingaction shudown -logfile c:\users\auchterj-admin\desktop\example.log">
+               <Service Type="Service" Name="vmtools" Action="Stop/Start"></Service> 
+            </Server>
+        </Cluster>
+    </Group>
+
+    <Group Name="Example1">
+        <Server Type="Server" HostName="Server2" Action="Patch" Flags="">
+            <Service Type="Service" Name="vmtools" Action="Stop/Start"></Service> 
+        </Server>
+        <Server Type="Server" HostName="" Action="Patch" Flags=""></Server>
+    </Group>
+
+    <Group Name="Example2">
+        <Server Type="Server" HostName="SVOPSPROD01" Action="PowerON"></Server>
+    </Group>
+</Patching>

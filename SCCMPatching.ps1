@@ -6,7 +6,7 @@ Function WriteLog{
     )
     $LogTime = Get-Date
     $StringToWrite = $LogTime.ToString() + ": "+ $StringInput
-    Add-Content $LogFile -value $StringToWrite
+    Add-Content -Path $LogFile -Value $StringToWrite
     Write-Host $StringInput
 }#End of Function
     
@@ -290,4 +290,139 @@ Function Get-PatchStatus{
             }
         }
     }
+}#End of Function
+
+Function Start-ComplexPatch{
+<#
+    .SYNOPSIS
+        This Function takes XML files to complete complex patching sequences.
+
+    .DESCRIPTION
+        Start-ServerPatching
+        Author: James Auchterlonie
+        Version: 0.1
+        Last Modified: 05/06/18 11AM
+
+        Changelog:
+        0.1 - 
+    .OUTPUTS
+        Complete - Patches completed for all servers
+        Error - Error with patching
+    .PARAMETER XMLFile
+        The XML file dictating which servers are to be patched.
+    .Parameter LogFile
+        A specific file to provide output to, by default the script will output to C:\Temp\ComplexPatching<datetime>.log
+    .Example 
+    #Patch multiple servers as defined in XML file.
+    Start-ComplexPatch -XMLFile C:\Example.xml -LogFile C:\Example.log
+#>
+    [cmdletbinding()]
+    Param(
+        [Parameter(Position=0,mandatory=$true)]
+        [string]$XMLFile,
+        [Parameter(Position=1,mandatory=$false)]
+        [string]$LogFile,
+        [Parameter(Position=1,mandatory=$false)]
+        [string]$virtualHost
+        #TODO: Add a full auto flag - No warning prompts or error pauses.
+    )
+    Begin{
+        [XML]$ServerData= get-content -Path $XMLFile
+        if(!($LogFile)){$LogFile = "c:\Temp\ComplexPowershell.Log"}else{$LogFile}
+        #TODO: Import-Module HyperV
+        #TODO: Import-Module Clustering
+        #TODO: Import-Module VMware.PowerCLI
+        #TODO: Check for connection to Virtual host if specified.
+    }
+    Process{
+        Foreach($PatchingGroup in $ServerData.Patching.Group){
+            WriteLog -StringInput "Processing Group $($PatchingGroup.name)" -LogFile $LogFile
+            #Foreach server/cluster. If server detected, $Device variable used to identify the server, if Cluster $Node is used to identify the server.
+            foreach($Device in $PatchingGroup.ChildNodes){
+               if($Device.Type -eq "Cluster"){
+                    WriteLog -StringInput "Cluster has been specified. Patching and failing over." -LogFile $LogFile
+                    Foreach($Node in $Device.ChildNodes){
+                        #TODO: Add Cluster Loging    
+                    }
+               }elseif($Device.type -eq "Server"){
+                    WriteLog -StringInput "Server Found. Hostname: $($Device.name)" -LogFile $LogFile
+                    #check if services need to be handled.
+                    if(($Device.ChildNodes).count -gt 0){
+                        WriteLog -StringInput "Services have been Found" -LogFile $LogFile
+                        #foreach service that is found, perform action.
+                        foreach($Service in $device.ChildNodes){
+                            #Test for existence of service on server
+                            if($ServerService = Get-Service -ComputerName $($Device.name) -Name $($Service.name)){
+                                #Perform action based on XML specification
+                                if(($Service.Action).toUpper() -eq "STOP"){
+                                    WriteLog -StringInput "Stopping service $($Service.name) on server $($device.name)" -LogFile $LogFile
+                                    Stop-Service -InputObject $ServerService -Verbose -Force #TODO: Add Error Handling
+                                    WriteLog -StringInput "Service Stopped" -LogFile $LogFile
+                                }elseif($($Service.Action).toUpper() -eq "START"){
+                                    WriteLog -StringInput "Starting service $($Service.name) on server $($device.name)" -LogFile $LogFile
+                                    Start-Service -InputObject $ServerService -Verbose #TODO: Add Error Handling
+                                    WriteLog -StringInput "Service Started" -LogFile $LogFile    
+                                }else{
+                                    WriteLog -StringInput "ERROR: Service tag has been incorrectly defined within XML file. Please define an action of STOP/START" -LogFile $LogFile
+                                }
+                            }else{
+                                WriteLog -StringInput "WARNING: Service not found on server" -LogFile $LogFile
+                            }
+                        }
+                    }else{
+                        WriteLog -StringInput "No Services found for this server." -LogFile $LogFile
+                    }
+                    #Now that services have been handled, complete action assigned to this server.
+                    Switch($($Device.Action).toUpper()){
+                        "PATCH"{
+                            $flags = "-Servername $($device.HostName) $($device.flags)"
+                            WriteLog -StringInput "Running Patching command: Start-ServerPatching $flags" -LogFile $LogFile
+                            #$return = Start-ServerPatching $flags
+                            Switch($return.toUpper){
+                                "COMPLETE"{
+                                    WriteLog -StringInput "Start-ServerPatching has returned successfully" -LogFile $LogFile
+                                }"NOPATCHES"{
+                                    WriteLog -StringInput "Start-ServerPatching has advised no patches available." -LogFile $LogFile
+                                }"ERROR"{
+                                    WriteLog -StringInput "Start-ServerPatching has thrown and error patching server: $($Device.HostName)" -LogFile $LogFile
+                                    $continue = Read-Host "Would you like to continue? (Y/N)"
+                                    if($continue.ToUpper() -eq "Y"){
+                                        #CURRENT UP TO
+                                    }else{
+                                        WriteLog -StringInput "User has elected not to continue after error" -LogFile $LogFile
+                                    }
+                                }"TIMEOUT"{
+                                    WriteLog -StringInput "Start-ServerPatching has ran over the allocated time: $($Device.HostName)" -LogFile $LogFile
+                                }"SERVERNOTFOUND"{
+                                    WriteLog -StringInput "Start-ServerPatching is unable to locate the server: $($Device.HostName)" -LogFile $LogFile
+                                }"REMOTEWMINOTAVAILABLE"{
+                                    WriteLog -StringInput "Start-ServerPatching is unable to connect to WMI for server: $($Device.HostName)" -LogFile $LogFile
+                                }"SHUTDOWN"{
+                                    WriteLog -StringInput "$($Device.HostName) has been shutdown by Start-ServerPatching" -LogFile $LogFile
+                                }"RESTART"{
+                                    WriteLog -StringInput "$($Device.HostName) has been restarted by Start-ServerPatching" -LogFile $LogFile
+                                }
+                            }
+                        }
+                        "SHUTDOWN"{
+                            WriteLog -StringInput "Completing Shutdown for: $($device.HostName)" -LogFile $LogFile
+                            Stop-Computer -ComputerName $device.HostName -Confirm:$false
+                        }
+                        "RESTART"{
+                            WriteLog -StringInput "Completing Restart for: $($device.HostName)" -LogFile $LogFile
+                            Restart-Computer -ComputerName $Server -Confirm:$false
+                        }
+                        "START"{
+                            WriteLog -StringInput "Attempting startup of $($device.HostName)" -LogFile $LogFile
+                            #TODO: Start-server -server $($device.HostName) -LogFile $LogFile
+                        }
+                        "NONE"{
+                            WriteLog -StringInput "WARNING: No action has been specified for server: $($device.HostName)" -LogFile $LogFile
+                        }
+                    }
+               }
+            }
+        }
+    }
+
 }#End of Function
