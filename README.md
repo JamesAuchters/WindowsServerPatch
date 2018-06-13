@@ -3,8 +3,5 @@ This Module allows windows administrators to install prestaged SCCM patches for 
 
 
 ## Functions
-Add-Log, Start-ServerPatching, Get-PatchStatus</br>
-Start-XMLPatch, Start-ServerXML, Start-ServiceXML, Start-ClusterXML</br>
-
-Author: James Auchterlonie</br>
-</br>
+Public: Start-ServerPatching, Get-PatchStatus, Start-XMLPatch</br>
+Private: Add-Log, Start-ServerXML, Start-ServiceXML, Start-ClusterXML</br>
