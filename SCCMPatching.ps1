@@ -136,8 +136,7 @@ Function Start-ServerPatching {
         [string]$postPatchingAction
     )#End of Param
     Begin{
-        #TODO: Work out usage of the global logfile within this function.
-        if(!($Log)){$global:LogFile = "c:\Temp\ComplexPowershell.Log"}else{$Global:LogFile=$Log}
+        if(!($Log) -or ($global:LogFile -eq "")){$global:LogFile = "c:\Temp\ComplexPowershell.Log"}else{$Global:LogFile=$Log}
         #Output basic details to logfile
         Add-Log -StringInput "SCCM Patching Script" -File $global:LogFile
         Add-Log -StringInput "Patching initiated by user: $env:USERNAME" -File $global:LogFile 
@@ -387,6 +386,7 @@ Function Start-ServerXML{
     )#End of Param
     Begin{
         #TODO: Check for VMWare/HYPERV Module.
+        #TODO: XML validation.
     }#End of Begin
     Process{
         #check if services need to be handled.
@@ -480,6 +480,7 @@ Function Start-ClusterXML{
     )#End of Param 
     Begin{
         $clusterNodes = @{}
+        #TODO: XML validation.
     }#End of Begin
     Process{
         #get a list of nodes
