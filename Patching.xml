@@ -33,7 +33,7 @@ END OF DESCRIPTION
 <Patching>
     <Group Name="Front End">
         <Cluster Type="Cluster" ActiveNode="">
-            <Server Type="Server" HostName="Server1" Action="Patch" Flags="-postpatchingaction shudown -logfile c:\users\auchterj-admin\desktop\example.log">
+            <Server Type="Server" HostName="Server1" Action="Patch" Flags="-postpatchingaction shudown -logfile c:\TEMP\example.log">
                <Service Type="Service" Name="vmtools" Action="Stop/Start"></Service> 
             </Server>
         </Cluster>
