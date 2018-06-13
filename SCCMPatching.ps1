@@ -1,5 +1,8 @@
 ﻿#Variable Declaration
-$PatchStatus = @{}#declare hashtable for possible patch statuses
+
+#declare hashtable for possible patch statuses
+#exit codes taken from: https://msdn.microsoft.com/library/jj155450.aspx
+$PatchStatus = @{}
 $PatchStatus.add(1,"is available, but has not been activated")
 $PatchStatus.add(2,"has been submitted for evaluation")
 $PatchStatus.add(3,"is currently being detected") 
@@ -31,7 +34,23 @@ $LogFile = ""
 #Simple logging function
 Function WriteLog{
     <# 
-
+        .SYNOPSIS
+            Takes a string input and flags to write logs and information to screen
+        .PARAMETER StringInput 
+            Data to be written to screen and log. Timestamp is auto generated.
+        .PARAMETER Action
+            An Int code that defines the type of output.
+            1=Error
+            2=Warning
+            3=PauseforInput
+        .Parameter File
+            Location to write log to. 
+        .EXAMPLE
+            WriteLog -StringInput "Example" -File C:\Example.log
+            Writes a normal log to file and screen
+        .EXAMPLE 
+            WriteLog -StringInput "Example" -Action 1 -File C:\Example.log
+            Writes a warning log to file and screen
     #>
     Param(
         [Parameter(mandatory=$true)]
@@ -40,32 +59,39 @@ Function WriteLog{
         [String]$File,
         [Parameter(mandatory=$false)]
         [int]$Action
-        #TODO: Update with Warning and Error Flags
     )
     Begin{
         $LogTime = Get-Date
+        $StringToWrite = $LogTime + ": "+ $StringInput
+        $continue = ''
     }
     Process{
-        #CONTINUE HERE: Setting up writelog action for different error types. 
-        #Allows removal of Pauseforinput and sets up different diplays for error/warning.
-        if($Action -eq 1){
-            $continue = ''
-            while($continue.ToUpper() -ne 'Y'){
+        Switch($Action){
+            1{
+                $StringToWrite = $LogTime + ": ERROR: " + $StringInput
                 Add-Content -Path $File -Value $StringToWrite
-                $continue = Read-Host "Would you like to continue? (Y/N)"
-                if($continue.ToUpper() -eq "Y"){
-                    
-                }elseif($continue.ToUpper() -eq "N"){
-                    
-                    return "Cancelled"
-                }else{
-                    Write-Host "Please enter Y or N."
+                Write-Host $StringInput -ForegroundColor Red
+            }2{
+                $StringToWrite = $LogTime + ": WARNING: " + $StringInput
+                Add-Content -Path $File -Value $StringToWrite
+                Write-Host $StringInput -ForegroundColor Yellow 
+            }3{
+                while($continue.ToUpper() -ne 'Y'){
+                    Write-Host $StringToWrite
+                    Add-Content -Path $File -Value $StringToWrite
+                    $continue = Read-Host "Would you like to continue? (Y/N)"
+                    if($continue.ToUpper() -eq "Y"){
+                        Add-Content -Path $File -Value "$env:USERNAME has elected to continue."
+                    }elseif($continue.ToUpper() -eq "N"){
+                        Add-Content -Path $File -Value "$env:USERNAME has elected to stop"
+                    }else{
+                        Write-Host "Please enter Y or N."
+                    }
                 }
+            }Default{
+                Add-Content -Path $File -Value $StringToWrite
+                Write-Host $StringInput
             }
-        }Else{
-            $StringToWrite = $LogTime.ToString() + ": "+ $StringInput
-            Add-Content -Path $File -Value $StringToWrite
-            Write-Host $StringInput
         }
     }#End of Process  
 }#End of Function
@@ -74,24 +100,7 @@ Function Start-ServerPatching {
     <#
         .SYNOPSIS
             This Function utilises the SCCM WMI module to install patches that are currently in an available state. 
-
-        .DESCRIPTION
-            Start-ServerPatching
-            Author: James Auchterlonie
-            Version: 1.2
-            Last Modified: 12/04/18 3:30PM
-
-            Changelog:
-            0.1 - Basic WMI to get and complete server patches
-            0.2 - Control logic for patching
-            0.3 - Replaced Write-Host with Logging Function
-            0.4 - Included logic to handle shutdowns/restarts/errors
-            1.0 - Basic Version Completed
-            1.1 - Updated ugly switch with neater hashtable logic
-            1.2 - Updated initialisation to hanfle lack of WMI connectivity
-            1.3 - Added help file
-            1.4 - Updated local logfile with global logfile
-
+            
         .OUTPUTS
             Complete - Patches completed, not rebooted/shutdown
             NoPatches - WMI advised no patches queued
@@ -186,7 +195,7 @@ Function Start-ServerPatching {
                     WriteLog -StringInput "WMI result is: $wmiresult" -File $global:LogFile
                     #check on WMI result and previous reboot status, if reboot is 0 ignore code. Go back to line 83 
                     if(($wmiresult) -and ($readyforreboot -eq 1)){
-                        #Setup exit behaviour based off: https://msdn.microsoft.com/library/jj155450.aspx  
+                        #Setup exit behaviour based off status codes.
                         WriteLog -StringInput "WMI status for this patch is: $($wmiresult.EvaluationState)" -File $global:LogFile
                         switch($($wmiresult.EvaluationState)){
                             {($_ -eq 8) -or ($_ -eq 9) -or ($_ -eq 10)-or ($_ -eq 12)}{
@@ -339,7 +348,7 @@ Function Start-ServiceXML{
                 WriteLog -StringInput "ERROR: Service tag has been incorrectly defined within XML file. Please define an action of STOP/START" -File $global:LogFile
             }
         }else{
-            WriteLog -StringInput "WARNING: Service not found on server" -File $global:LogFile
+            WriteLog -StringInput "Service not found on server" -File $global:LogFile -Action 2
         }
     }#End of Process
 }#End of Function
@@ -389,8 +398,7 @@ Function Start-ServerXML{
             #foreach service that is found, perform action.
             foreach($Service in $ServerXML.ChildNodes){
                 #pass node to function which holds service handling logic.
-                Write-host "Start-S
-                erviceXML -Service $Service -Server $($Device.name)"
+                Start-ServiceXML -Service $Service -Server $($Device.name)
             }
         }else{
             WriteLog -StringInput "No Services found for this server." -File $global:LogFile
@@ -407,17 +415,17 @@ Function Start-ServerXML{
                     }"NOPATCHES"{
                         WriteLog -StringInput "Start-ServerPatching has advised no patches available." -File $global:LogFile
                     }"ERROR"{
-                        WriteLog -StringInput "ERROR: Start-ServerPatching has failed patching for server: $($ServerXML.HostName)" -File $global:LogFile
-                        PauseForInput
+                        WriteLog -StringInput "Start-ServerPatching has failed patching for server: $($ServerXML.HostName)" -File $global:LogFile -Action 1
+                        WriteLog -StringInput "" -Action 3 -File $global:LogFile
                     }"TIMEOUT"{
-                        WriteLog -StringInput "WARNING: Start-ServerPatching has ran over the allocated time: $($ServerXML.HostName)" -File $global:LogFile
-                        PauseForInput
+                        WriteLog -StringInput "Start-ServerPatching has ran over the allocated time: $($ServerXML.HostName)" -File $global:LogFile -Action 2
+                        WriteLog -StringInput "" -Action 3 -File $global:LogFile
                     }"SERVERNOTFOUND"{
                         WriteLog -StringInput "Start-ServerPatching is unable to locate the server: $($ServerXML.HostName)" -File $global:LogFile
-                        PauseForInput
+                        WriteLog -StringInput "" -Action 3 -File $global:LogFile
                     }"REMOTEWMINOTAVAILABLE"{
                         WriteLog -StringInput "Start-ServerPatching is unable to connect to WMI for server: $($ServerXML.HostName)" -File $global:LogFile
-                        PauseForInput
+                        WriteLog -StringInput "" -Action 3 -File $global:LogFile
                     }"SHUTDOWN"{
                         WriteLog -StringInput "$($ServerXML.HostName) has been shutdown by Start-ServerPatching" -File $global:LogFile
                     }"RESTART"{
@@ -439,7 +447,7 @@ Function Start-ServerXML{
                 #TODO: Start-server -server $($device.HostName) -File $global:LogFile
             }
             "NONE"{
-                WriteLog -StringInput "WARNING: No action has been specified for server: $($ServerXML.HostName)" -File $global:LogFile
+                WriteLog -StringInput "No action has been specified for server: $($ServerXML.HostName)" -File $global:LogFile -Action 2
             }
         }
     }#End of Process 
@@ -485,7 +493,7 @@ Function Start-ClusterXML{
         foreach($Server in $Cluster.ChildNodes){
             #Am I working with a cluster node?
             if($clusterNodes.Contains($($Server.HostName))){
-                WriteLog -StringInput "$($Server.HostName) is in specified cluster" -Log $Global:Logfile
+                WriteLog -StringInput "$($Server.HostName) is in specified cluster" -File $Global:Logfile
                 #Am I the host node?
                 if($Server.HostName -eq $ClusterOwner){
                     #Move cluster off this node for reboots to occur.
@@ -502,8 +510,8 @@ Function Start-ClusterXML{
                         $_.CategoryInfo.ToString(),
                         $_.FullyQualifiedErrorId
                         $DumpError = $formatstring -f $fields
-                        WriteLog -StringInput $DumpError -log $Global:Logfile
-                        PauseforInput
+                        WriteLog -StringInput $DumpError -File $Global:Logfile -Action 1
+                        WriteLog -StringInput "" -File $Global:Logfile -Action 3
                     }
                 }else{
                     'Start-ServerXML $Server'
@@ -511,7 +519,7 @@ Function Start-ClusterXML{
                 $clusterNodes."$($Server.HostName)" = "XML Action Carried Out"
             }else{
                 #XML Declared wrong. Not accounting for numbnuts.
-                WriteLog -StringInput "WARNING: $($Server.HostName) Not in Cluster, no actions have been carried out." -log $Global:Logfile
+                WriteLog -StringInput "$($Server.HostName) Not in Cluster, no actions have been carried out." -File $Global:Logfile -Action 2
             }
         }
         #Now that loop has moved through all servers, move the server back to the desired node. 
@@ -527,8 +535,8 @@ Function Start-ClusterXML{
             $_.CategoryInfo.ToString(),
             $_.FullyQualifiedErrorId
             $DumpError = $formatstring -f $fields
-            WriteLog -StringInput $DumpError -log $Global:Logfile
-            PauseforInput -StringInput ""
+            WriteLog -StringInput $DumpError -File $Global:Logfile -Action 1
+            WriteLog -StringInput "" -File $Global:Logfile -Action 3
         }
         #TODO: Add dump of completed cluster node actions to the log.
     }#End of Process                                                                         
@@ -549,7 +557,7 @@ Function Start-XMLPatch{
             0.1 - 
         .OUTPUTS
             Complete - Patches completed for all servers
-            Error - Error with patching
+            Error - problem with patching
             MissingModule - Missing a required module for execution.
         .PARAMETER XMLFile
             The XML file dictating which servers are to be patched.
