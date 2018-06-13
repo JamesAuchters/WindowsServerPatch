@@ -11,4 +11,5 @@ Private: Add-Log, Start-ServerXML, Start-ServiceXML, Start-ClusterXML</br>
 -Use Github feedback to improve logic and layout
 -Update clustering XML function to handle multiple cluster resources
 -Update all XML functions to validate the passed nodes.
+-Anything commented as TODO:
 
