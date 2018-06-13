@@ -406,7 +406,7 @@ Function Start-ServerXML{
                 $flags = "-Servername $($ServerXML.HostName) $($ServerXML.flags)"
                 Add-Log -StringInput "Running Patching command: Start-ServerPatching $flags" -File $global:LogFile
                 $return = Start-ServerPatching $flags
-                Switch($return.toUpper){
+                Switch($return.toUpper()){
                     "COMPLETE"{
                         Add-Log -StringInput "Start-ServerPatching has returned successfully" -File $global:LogFile
                     }"NOPATCHES"{
@@ -440,7 +440,10 @@ Function Start-ServerXML{
             }
             "START"{
                 Add-Log -StringInput "Attempting startup of $($ServerXML.HostName)" -File $global:LogFile
-                #TODO: Use HyperV/VMWare Module
+                if($($ServerXML.Type).toUpper() -eq "PHYSICAL"){
+                    Add-Log -StringInput "Pausing for physical server power on. Please connect to required management interfaces manually." -File $global:LogFile -Action 3
+                    #TODO: Add support for physical servers. Figure out some way to connect to iLo, IDRAC, UCS Manager  
+                }
                 #TODO: Start-server -server $($device.HostName) -File $global:LogFile
             }
             "NONE"{
@@ -572,16 +575,34 @@ Function Start-XMLPatch{
         [string]$XMLFile,
         [Parameter(Position=1,mandatory=$false)]
         [string]$Log,
-        [Parameter(Position=1,mandatory=$false)]
+        [Parameter(Position=2,mandatory=$false)]
+        [string]$virtualType,
+        [Parameter(Position=3,mandatory=$false)]
         [string]$virtualHost
         #TODO: Add a full auto flag - No warning prompts or error pauses.
     )#End of Param
     Begin{
         [XML]$PatchData= get-content -Path $XMLFile
-        if(!($Log)){$global:LogFile = "c:\Temp\ComplexPowershellPatching.Log"}else{$Global:LogFile=$log}
+        if(!($Log) -or ($global:LogFile = "")){$global:LogFile = "c:\Temp\ComplexPowershellPatching.Log"}else{$Global:LogFile=$log}
         
         #TODO: Import-Module HyperV
         #TODO: Import-Module VMware.PowerCLI
+        #CONTINUE HERE: Why would VMWare use the same damn commandlets as the HyperV ones. FFS guys.
+        If(Get-Module -ListAvailable FailoverClusters){
+            If(!(Get-module FailoverClusters)) {
+                try{
+                    Import-Module FailoverClusters -ErrorAction Stop
+                }catch{
+                    Add-Log -StringInput "Failed to import module VMWare-PowerCLI" -File $global:LogFile -Action 1
+                    return "MissingModule"
+                }    
+            }else{
+                Add-Log -StringInput "VMWare-PowerCLI is already loaded." -File $global:LogFile
+            }
+        }else{
+            Add-Log -StringInput "Failed to find module VMWare-PowerCLI" -File $global:LogFile -Action 1
+            return "MissingModule"
+        }
         #TODO: Check for connection to Virtual host if specified.
 
         #Clustering Module for required work.
@@ -590,14 +611,14 @@ Function Start-XMLPatch{
                 try{
                     Import-Module FailoverClusters -ErrorAction Stop
                 }catch{
-                    Add-Log -StringInput "Failed to import module FailoverClusters" -File $global:LogFile
+                    Add-Log -StringInput "Failed to import module FailoverClusters" -File $global:LogFile -Action 1
                     return "MissingModule"
                 }    
             }else{
                 Add-Log -StringInput "FailoverClusters is already loaded." -File $global:LogFile
             }
         }else{
-            Add-Log -StringInput "Failed to find module FailoverClusters" -File $global:LogFile
+            Add-Log -StringInput "Failed to find module FailoverClusters" -File $global:LogFile -Action 1
             return "MissingModule"
         }
     }#End of Begin

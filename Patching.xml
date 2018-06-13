@@ -11,19 +11,19 @@ Services can be stopped or started at the server level by using the <service> ta
 Below is an example XML with possible combinations.
 <Group Type="Group" Name="Front End">
     <Cluster Type="Cluster" ActiveNode="Server2">
-        <Server Type="Server" HostName="Server1" Action="Patch" Flags="">
+        <Server Type="Server" HostName="Server1" Action="Patch" Flags="" Type="Virtual/Physical">
             <Service Type="Service" Name="vmtools" Action="Stop/Start"></service>
         </Server>
-        <Server Type="Server" HostName="Server2" Action="Patch" Flags="">
+        <Server Type="Server" HostName="Server2" Action="Patch" Flags="" Type="Virtual/Physical">
             <Service Type="Service" Name="vmtools" Action="Stop/Start"></service>
         </Server>
     </Cluster>
 </Group>
 <Group Type="Group" Name="Back End">
-        <Server Type="Server" HostName="Server1" Action="Patch" Flags="">
+        <Server Type="Server" HostName="Server1" Action="Patch" Flags="" Type="Virtual/Physical">
             <Service Type="Service" Name="vmtools" Action="Stop/Start"></service>
         </Server>
-        <Server Type="Server" HostName="Server2" Action="Patch" Flags="">
+        <Server Type="Server" HostName="Server2" Action="Patch" Flags="" Type="Virtual/Physical">
             <Service Type="Service" Name="vmtools" Action="Stop/Start"></service>
         </Server>
 </Group>
