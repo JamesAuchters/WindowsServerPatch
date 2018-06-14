@@ -617,7 +617,6 @@ Function Start-XMLPatch{
             Default{
                 Add-Log "WARNING: No virtual Server specified. Assuming all servers are physical and may require intervention."} -File $global:LogFile -Action 2
             }
-        }
         #TODO: Check for connection to Virtual host if specified.
         #Clustering Module for required work.
         If(Get-Module -ListAvailable FailoverClusters){
