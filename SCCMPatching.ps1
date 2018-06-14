@@ -385,7 +385,6 @@ Function Start-ServerXML{
         [Xml.XmlElement[]]$ServerXML
     )#End of Param
     Begin{
-        #TODO: Check for VMWare/HYPERV Module.
         #TODO: XML validation.
     }#End of Begin
     Process{
@@ -540,7 +539,10 @@ Function Start-ClusterXML{
             Add-Log -StringInput $DumpError -File $Global:Logfile -Action 1
             Add-Log -StringInput "" -File $Global:Logfile -Action 3
         }
-        #TODO: Add dump of completed cluster node actions to the log.
+        Add-Log -StringInput "Summary for actions completed against cluster: $($Cluster.Name)" -File $Global:Logfile
+        foreach ($Node in $clusterNodes.GetEnumerator()) {
+            Add-Log "$($Node.Name): $($Node.Value)" -File $Global:Logfile
+        }
     }#End of Process                                                                         
 }#End of Function
 
@@ -563,8 +565,12 @@ Function Start-XMLPatch{
             MissingModule - Missing a required module for execution.
         .PARAMETER XMLFile
             The XML file dictating which servers are to be patched.
-        .Parameter LogFile
+        .PARAMETER LogFile
             A specific file to provide output to, by default the script will output to C:\Temp\ComplexPatching<datetime>.log
+        .PARAMETER virtualType
+            Specify whether to load VMWare or HyperV Module for virtual server support.
+        .PARAMETER virtualHost 
+            Specify the Virtual management interface to connect to.
         .Example 
             #Patch multiple servers as defined in XML file.
             Start-ComplexPatch -XMLFile C:\Example.xml -File C:\Example.log
@@ -584,27 +590,35 @@ Function Start-XMLPatch{
     Begin{
         [XML]$PatchData= get-content -Path $XMLFile
         if(!($Log) -or ($global:LogFile = "")){$global:LogFile = "c:\Temp\ComplexPowershellPatching.Log"}else{$Global:LogFile=$log}
-        
         #TODO: Import-Module HyperV
         #TODO: Import-Module VMware.PowerCLI
-        #CONTINUE HERE: Why would VMWare use the same damn commandlets as the HyperV ones. FFS guys.
-        If(Get-Module -ListAvailable FailoverClusters){
-            If(!(Get-module FailoverClusters)) {
-                try{
-                    Import-Module FailoverClusters -ErrorAction Stop
-                }catch{
-                    Add-Log -StringInput "Failed to import module VMWare-PowerCLI" -File $global:LogFile -Action 1
-                    return "MissingModule"
-                }    
-            }else{
-                Add-Log -StringInput "VMWare-PowerCLI is already loaded." -File $global:LogFile
+        switch ($virtualType.ToUpper()){
+            "HYPERV"{
+
             }
-        }else{
-            Add-Log -StringInput "Failed to find module VMWare-PowerCLI" -File $global:LogFile -Action 1
-            return "MissingModule"
+            "VMWARE"{
+                #CONTINUE HERE: Why would VMWare use the same damn commandlets as the HyperV ones. FFS guys.
+                If(Get-Module -ListAvailable FailoverClusters){
+                    If(!(Get-module FailoverClusters)) {
+                        try{
+                            Import-Module FailoverClusters -ErrorAction Stop
+                        }catch{
+                            Add-Log -StringInput "Failed to import module VMWare-PowerCLI" -File $global:LogFile -Action 1
+                            return "MissingModule"
+                        }    
+                    }else{
+                        Add-Log -StringInput "VMWare-PowerCLI is already loaded." -File $global:LogFile
+                    }
+                }else{
+                    Add-Log -StringInput "Failed to find module VMWare-PowerCLI" -File $global:LogFile -Action 1
+                    return "MissingModule"
+                }
+            }
+            Default{
+                Add-Log "WARNING: No virtual Server specified. Assuming all servers are physical and may require intervention."} -File $global:LogFile -Action 2
+            }
         }
         #TODO: Check for connection to Virtual host if specified.
-
         #Clustering Module for required work.
         If(Get-Module -ListAvailable FailoverClusters){
             If(!(Get-module FailoverClusters)) {
