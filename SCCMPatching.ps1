@@ -40,6 +40,7 @@ Function Add-Log{
             1=Error
             2=Warning
             3=PauseforInput
+            4=Green Title
         .Parameter File
             Location to write log to. 
         .EXAMPLE
@@ -58,7 +59,7 @@ Function Add-Log{
         [int]$Action
     )
     Begin{
-        $LogTime = Get-Date
+        $LogTime = (Get-Date).ToString()
         $StringToWrite = $LogTime + ": "+ $StringInput
         $continue = ''
     }
@@ -85,6 +86,11 @@ Function Add-Log{
                         Write-Host "Please enter Y or N."
                     }
                 }
+            }4{
+                Add-Content -Path $File -Value $StringToWrite
+                ""
+                Write-Host $StringInput -ForegroundColor Green
+                ""
             }Default{
                 Add-Content -Path $File -Value $StringToWrite
                 Write-Host $StringInput
@@ -595,18 +601,20 @@ Function Start-XMLPatch{
         #TODO: Add a full auto flag - No warning prompts or error pauses.
     )#End of Param
     Begin{
-        [XML]$PatchData= get-content -Path $XMLFile
         if(!($Log) -or ($global:LogFile = "")){$global:LogFile = "c:\Temp\ComplexPowershellPatching.Log"}else{$Global:LogFile=$log}
-        
+        Add-Log -StringInput "Completing Prepatch checks" -Action 4 -File $global:LogFile
+        [XML]$PatchData= get-content -Path $XMLFile
         switch ($virtualType.ToUpper()){
             "HYPERV"{
                 #TODO: Import-Module HyperV
             }
             "VMWARE"{
                 #VMWare vCentre module required for startup/shutdown
+                Add-Log -StringInput "Testing for and importing VMWare modules." -File $global:LogFile
                 If(Get-Module -ListAvailable vmware.vimautomation.core){
                     If(!(Get-module vmware.vimautomation.core)) {
                         try{
+              
                             Import-Module vmware.vimautomation.core -ErrorAction Stop
                         }catch{
                             Add-Log -StringInput "Failed to import module vmware.vimautomation.core" -File $global:LogFile -Action 1
@@ -620,7 +628,9 @@ Function Start-XMLPatch{
                     return "MissingModule"
                 }
                 try{
+                    Add-Log -StringInput "Connecting to Management host" -File $global:LogFile
                     Connect-VIServer -Server $virtualHost -ErrorAction Stop
+                    ""
                 }catch{
                     Add-Log "Unable to connect to Virtual Infrastructure Management Server" -File $global:LogFile -Action 1
                     return "NoVirtualHost"
@@ -631,6 +641,7 @@ Function Start-XMLPatch{
             }
         }
         #Clustering Module for required work.
+        Add-Log -StringInput "Testing for and importing Clustering modules." -File $global:LogFile
         If(Get-Module -ListAvailable FailoverClusters){
             If(!(Get-module FailoverClusters)) {
                 try{
@@ -646,10 +657,12 @@ Function Start-XMLPatch{
             Add-Log -StringInput "Failed to find module FailoverClusters" -File $global:LogFile -Action 1
             return "MissingModule"
         }
+        
+        Add-Log -StringInput "Beginning patching" -Action 4 -File $global:LogFile
     }#End of Begin
     Process{
         Foreach($PatchingGroup in $PatchData.Patching.Group){
-            Add-Log -StringInput "Processing Group $($PatchingGroup.name)" -File $global:LogFile
+            Add-Log -StringInput "Processing Group $($PatchingGroup.name)" -File $global:LogFile -Action 4
             #Foreach server/cluster. If server detected, $Device variable used to identify the server, if Cluster $Node is used to identify the server.
             foreach($XMLNode in $PatchingGroup.ChildNodes){
                if($XMLNode.Type -eq "Cluster"){
