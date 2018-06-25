@@ -341,7 +341,7 @@ Function Start-ServiceXML{
                 Start-Service -InputObject $ServerService -Verbose #TODO: Add Error Handling
                 Add-Log -StringInput "Service Started" -File $global:LogFile    
             }else{
-                Add-Log -StringInput "ERROR: Service tag has been incorrectly defined within XML file. Please define an action of STOP/START" -File $global:LogFile
+                Add-Log -StringInput "Service tag has been incorrectly defined within XML file. Please define an action of STOP/START" -File $global:LogFile -Action 1
             }
         }else{
             Add-Log -StringInput "Service not found on server" -File $global:LogFile -Action 2
@@ -442,8 +442,14 @@ Function Start-ServerXML{
                 if($($ServerXML.Type).toUpper() -eq "PHYSICAL"){
                     Add-Log -StringInput "Pausing for physical server power on. Please connect to required management interfaces manually." -File $global:LogFile -Action 3
                     #TODO: Add support for physical servers. Figure out some way to connect to iLo, IDRAC, UCS Manager  
+                }else{
+                    Add-Log -StringInput "Starting Server: $($ServerXML.HostName)" -File $global:LogFile
+                    Get-VM $($ServerXML.HostName) | Start-VM -Confirm:$false
+                    while ((get-service -name "Winmgmt" -computer $($ServerXML.HostName)).status -ne "Running"){
+                        Add-Log "Waiting for server to come online"; 
+                        start-sleep -s 1; 
+                    }
                 }
-                #TODO: Start-server -server $($device.HostName) -File $global:LogFile
             }
             "NONE"{
                 Add-Log -StringInput "No action has been specified for server: $($ServerXML.HostName)" -File $global:LogFile -Action 2
@@ -563,6 +569,7 @@ Function Start-XMLPatch{
             Complete - Patches completed for all servers
             Error - problem with patching
             MissingModule - Missing a required module for execution.
+            NoVirtualHost - Unable to connect to management services
         .PARAMETER XMLFile
             The XML file dictating which servers are to be patched.
         .PARAMETER LogFile
@@ -590,34 +597,39 @@ Function Start-XMLPatch{
     Begin{
         [XML]$PatchData= get-content -Path $XMLFile
         if(!($Log) -or ($global:LogFile = "")){$global:LogFile = "c:\Temp\ComplexPowershellPatching.Log"}else{$Global:LogFile=$log}
-        #TODO: Import-Module HyperV
-        #TODO: Import-Module VMware.PowerCLI
+        
         switch ($virtualType.ToUpper()){
             "HYPERV"{
-
+                #TODO: Import-Module HyperV
             }
             "VMWARE"{
-                #CONTINUE HERE: Why would VMWare use the same damn commandlets as the HyperV ones. FFS guys.
-                If(Get-Module -ListAvailable FailoverClusters){
-                    If(!(Get-module FailoverClusters)) {
+                #VMWare vCentre module required for startup/shutdown
+                If(Get-Module -ListAvailable vmware.vimautomation.core){
+                    If(!(Get-module vmware.vimautomation.core)) {
                         try{
-                            Import-Module FailoverClusters -ErrorAction Stop
+                            Import-Module vmware.vimautomation.core -ErrorAction Stop
                         }catch{
-                            Add-Log -StringInput "Failed to import module VMWare-PowerCLI" -File $global:LogFile -Action 1
+                            Add-Log -StringInput "Failed to import module vmware.vimautomation.core" -File $global:LogFile -Action 1
                             return "MissingModule"
                         }    
                     }else{
-                        Add-Log -StringInput "VMWare-PowerCLI is already loaded." -File $global:LogFile
+                        Add-Log -StringInput "vmware.vimautomation.core is already loaded." -File $global:LogFile
                     }
                 }else{
-                    Add-Log -StringInput "Failed to find module VMWare-PowerCLI" -File $global:LogFile -Action 1
+                    Add-Log -StringInput "Failed to find module vmware.vimautomation.core" -File $global:LogFile -Action 1
                     return "MissingModule"
+                }
+                try{
+                    Connect-VIServer -Server $virtualHost -ErrorAction Stop
+                }catch{
+                    Add-Log "Unable to connect to Virtual Infrastructure Management Server" -File $global:LogFile -Action 1
+                    return "NoVirtualHost"
                 }
             }
             Default{
-                Add-Log "WARNING: No virtual Server specified. Assuming all servers are physical and may require intervention."} -File $global:LogFile -Action 2
+                Add-Log "WARNING: No virtual Server specified. Assuming all servers are physical and may require intervention." -File $global:LogFile -Action 2
             }
-        #TODO: Check for connection to Virtual host if specified.
+        }
         #Clustering Module for required work.
         If(Get-Module -ListAvailable FailoverClusters){
             If(!(Get-module FailoverClusters)) {
