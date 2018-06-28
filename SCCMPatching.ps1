@@ -75,8 +75,7 @@ Function Add-Log{
                 Write-Host $StringInput -ForegroundColor Yellow 
             }3{
                 while($continue.ToUpper() -ne 'Y'){
-                    Write-Host $StringToWrite
-                    Add-Content -Path $File -Value $StringToWrite
+                    Add-Content -Path $File -Value "Pausing for user input."
                     $continue = Read-Host "Would you like to continue? (Y/N)"
                     if($continue.ToUpper() -eq "Y"){
                         Add-Content -Path $File -Value "$env:USERNAME has elected to continue."
@@ -142,37 +141,38 @@ Function Start-ServerPatching {
         [string]$postPatchingAction
     )#End of Param
     Begin{
-        if(!($Log) -or ($global:LogFile -eq "")){$global:LogFile = "c:\Temp\ComplexPowershell.Log"}else{$Global:LogFile=$Log}
+        if(!($Log) -or ($Log -eq "")){$Log = "c:\Temp\SCCMPatching$Server.Log"}else{}
         #Output basic details to logfile
-        Add-Log -StringInput "SCCM Patching Script" -File $global:LogFile
-        Add-Log -StringInput "Patching initiated by user: $env:USERNAME" -File $global:LogFile 
-        Add-Log -StringInput "Initiating Server: $env:COMPUTERNAME" -File $global:LogFile
-        Add-Log -StringInput "Script Version: 1.0" -File $global:LogFile
-        Add-Log -StringInput "Server to be patched: $Server" -File $global:LogFile
+        Add-Log -StringInput "SCCM Patching Script" -File $Log
+        Add-Log -StringInput "Patching initiated by user: $env:USERNAME" -File $Log
+        Add-Log -StringInput "Initiating Server: $env:COMPUTERNAME" -File $Log
+        Add-Log -StringInput "Script Version: 1.0" -File $Log
+        Add-Log -StringInput "Server to be patched: $Server" -File $Log
         #check for servername, exit if not provided. 
         if($server){
             if(!(Test-Connection $Server -ErrorAction SilentlyContinue)){
-                Add-Log -StringInput "Unable see server" -File $global:LogFile
+                Add-Log -StringInput "Unable see server" -File $Log
                 return "ServerNotFound"
             }else{
                 try{
-                    Add-Log -StringInput "Checking WMI" -File $global:LogFile
+                    Add-Log -StringInput "Checking WMI" -File $Log
                     [System.Management.ManagementObject[]] $CMMissingUpdates = @(Get-WmiObject -ComputerName $server -query "SELECT * FROM CCM_SoftwareUpdate WHERE ComplianceState = '0'" -namespace "ROOT\ccm\ClientSDK" -ErrorAction Stop)<#End Get update count.#>
                 }catch{
-                    Add-Log -StringInput "Unable to connect to server using WMI" -File $global:LogFile
+                    Add-Log -StringInput "Unable to connect to server using WMI" -File $Log
                     Return "RemoteWMINotAvailable"
                 }
             }
         }else{
             return "Usage: Start-ServerPatching -Server <Hostname> -Log <LogPath>"
         }
+        $nopatches = $false
     }#End of Begin
     Process{
         # Get the number of missing updates
         $updates = $CMMissingUpdates.count
-        Add-Log -StringInput "The number of missing updates is $updates" -File $global:LogFile
+        Add-Log -StringInput "The number of missing updates is $updates" -File $Log
         foreach($patch in $CMMissingUpdates){
-        Add-Log -StringInput "Patchno KB$($patch.ArticleID)" -File $global:LogFile
+            Add-Log -StringInput "Patchno KB$($patch.ArticleID)" -File $Log
         }
 
         $finishTime = [DateTime]::Now.AddHours(1)
@@ -180,7 +180,7 @@ Function Start-ServerPatching {
         #if updates are available, install them.
         If ($updates) {
             $CMInstallMissingUpdates = (Get-WmiObject -ComputerName $server -Namespace "root\ccm\clientsdk" -Class "CCM_SoftwareUpdatesManager" -List).InstallUpdates($CMMissingUpdates)
-            Add-Log -StringInput "Patching Initiated" -File $global:LogFile
+            Add-Log -StringInput "Patching Initiated" -File $Log
             #not ready for reboot
             $reboot = 0 
             #Wait for all updates to be ready, and reboot once complete.
@@ -192,25 +192,25 @@ Function Start-ServerPatching {
                 foreach($patch in $CMMissingUpdates){
                     $patchno = $patch | Select-Object -ExpandProperty ArticleID
                     $query = "SELECT * FROM CCM_SoftwareUpdate WHERE ArticleID = '$patchno'"
-                    Add-Log -StringInput "KB$patchno being evaluated" -File $global:LogFile
+                    Add-Log -StringInput "KB$patchno being evaluated" -File $Log
                     $wmiresult = (Get-WmiObject -ComputerName $server -query $query -namespace "ROOT\ccm\ClientSDK")
-                    Add-Log -StringInput "WMI result is: $wmiresult" -File $global:LogFile
+                    Add-Log -StringInput "WMI result is: $wmiresult" -File $Log
                     #check on WMI result and previous reboot status, if reboot is 0 ignore code. Go back to line 83 
                     if(($wmiresult) -and ($readyforreboot -eq 1)){
                         #Setup exit behaviour based off status codes.
-                        Add-Log -StringInput "WMI status for this patch is: $($wmiresult.EvaluationState)" -File $global:LogFile
+                        Add-Log -StringInput "WMI status for this patch is: $($wmiresult.EvaluationState)" -File $Log
                         switch($($wmiresult.EvaluationState)){
                             {($_ -eq 8) -or ($_ -eq 9) -or ($_ -eq 10)-or ($_ -eq 12)}{
                                 #ready for reboot  or installed
-                                Add-Log -StringInput "KB$patchno $($global:PatchStatus[[int]$_])" -File $global:LogFile
+                                Add-Log -StringInput "KB$patchno $($global:PatchStatus[[int]$_])" -File $Log
                             }{($_ -eq 1) -or ($_ -eq 2)}{
                                 #1+2 is patches not initialised
-                                Add-Log -StringInput "KB$patchno $($global:PatchStatus[[int]$_])" -File $global:LogFile
+                                Add-Log -StringInput "KB$patchno $($global:PatchStatus[[int]$_])" -File $Log
                                 $CMInstallMissingUpdates = (Get-WmiObject -ComputerName $server -Namespace "root\ccm\clientsdk" -Class "CCM_SoftwareUpdatesManager" -List).InstallUpdates($CMMissingUpdates)        
                                 $readyforreboot = 0
                             }{$_ -eq 13}{
                                 #13 is patch in error
-                                Add-Log -StringInput "KB$patchno $($global:PatchStatus[[int]$_])" -File $global:LogFile
+                                Add-Log -StringInput "KB$patchno $($global:PatchStatus[[int]$_])" -File $Log
                                 $CMInstallMissingUpdates = (Get-WmiObject -ComputerName $server -Namespace "root\ccm\clientsdk" -Class "CCM_SoftwareUpdatesManager" -List).InstallUpdates($CMMissingUpdates)
                                 $failedPatchAttempts ++
                                 if($failedPatchAttempts -ge 5){
@@ -219,7 +219,7 @@ Function Start-ServerPatching {
                                     $readyforreboot=0
                                 }
                             }default{
-                                Add-Log -StringInput "KB$patchno $($global:PatchStatus[[int]$_])" -File $global:LogFile
+                                Add-Log -StringInput "KB$patchno $($global:PatchStatus[[int]$_])" -File $Log
                                 $readyforreboot = 0
                             }  
                         }    
@@ -238,22 +238,26 @@ Function Start-ServerPatching {
                     Start-Sleep -seconds 120   
                 }  
             }
-            Add-Log -StringInput "Patching is in desired state" -File $global:LogFile
+            Add-Log -StringInput "Patching is in desired state"-File $Log
         }Else{
-            Add-Log -StringInput "There are no missing updates." -File $global:LogFile
-            Return "NoPatches"
+            Add-Log -StringInput "There are no missing updates." -File $Log
+            $nopatches = $true
         }
         switch($postPatchingAction){
             {[String]$_.toUpper() -eq "RESTART"}{
-                Add-Log -StringInput "Initiating Server Restart" -File $global:LogFile
-                Restart-Computer -ComputerName $Server -Confirm:$false
+                Add-Log -StringInput "Initiating Server Restart" -File $Log
+                Restart-Computer -ComputerName $Server -Confirm:$false -Force
                 Return "Restart"
             }{[String]$_.toUpper() -eq "SHUTDOWN"}{
-                Add-Log -StringInput "Initiating Server Shutdown" -File $global:LogFile
-                Stop-Computer -ComputerName $Server -Confirm:$false
+                Add-Log -StringInput "Initiating Server Shutdown" -File $Log
+                Stop-Computer -ComputerName $Server -Confirm:$false -Force
                 return "Shutdown"
             }default{
-                Return "Complete"
+                if($nopatches){
+                    Return "NoPatches"
+                }Else{
+                    Return "Complete"
+                } 
             }
         }    
     }#End of Process    
@@ -408,9 +412,9 @@ Function Start-ServerXML{
         #Now that services have been handled, complete action assigned to this server.
         Switch($($ServerXML.Action).toUpper()){
             "PATCH"{
-                $flags = "-Servername $($ServerXML.HostName) $($ServerXML.flags)"
+                $flags = "-Servername $($ServerXML.HostName) -postpatchingaction $($ServerXML.postpatchingaction) -Log $($ServerXML.logfile)"
                 Add-Log -StringInput "Running Patching command: Start-ServerPatching $flags" -File $global:LogFile
-                $return = Start-ServerPatching $flags
+                $return = Start-ServerPatching -Server $($ServerXML.HostName) -postpatchingaction $($ServerXML.postpatchingaction) -Log $($ServerXML.logfile)
                 Switch($return.toUpper()){
                     "COMPLETE"{
                         Add-Log -StringInput "Start-ServerPatching has returned successfully" -File $global:LogFile
@@ -424,7 +428,7 @@ Function Start-ServerXML{
                         Add-Log -StringInput "" -Action 3 -File $global:LogFile
                     }"SERVERNOTFOUND"{
                         Add-Log -StringInput "Start-ServerPatching is unable to locate the server: $($ServerXML.HostName)" -File $global:LogFile
-                        Add-Log -StringInput "" -Action 3 -File $global:LogFile
+                        Add-Log -StringInput " " -Action 3 -File $global:LogFile
                     }"REMOTEWMINOTAVAILABLE"{
                         Add-Log -StringInput "Start-ServerPatching is unable to connect to WMI for server: $($ServerXML.HostName)" -File $global:LogFile
                         Add-Log -StringInput "" -Action 3 -File $global:LogFile
@@ -437,7 +441,7 @@ Function Start-ServerXML{
             }
             "SHUTDOWN"{
                 Add-Log -StringInput "Completing Shutdown for: $($ServerXML.HostName)" -File $global:LogFile
-                Stop-Computer -ComputerName $ServerXML.HostName -Confirm:$false
+                Stop-Computer -ComputerName $ServerXML.HostName -Confirm:$false -Force
             }
             "RESTART"{
                 Add-Log -StringInput "Completing Restart for: $($ServerXML.HostName)" -File $global:LogFile
@@ -451,9 +455,9 @@ Function Start-ServerXML{
                 }else{
                     Add-Log -StringInput "Starting Server: $($ServerXML.HostName)" -File $global:LogFile
                     Get-VM $($ServerXML.HostName) | Start-VM -Confirm:$false
-                    while ((get-service -name "Winmgmt" -computer $($ServerXML.HostName)).status -ne "Running"){
-                        Add-Log "Waiting for server to come online"; 
-                        start-sleep -s 1; 
+                    while ((get-service -name "Winmgmt" -computer $($ServerXML.HostName) -ErrorAction SilentlyContinue).status -ne "Running"){
+                        Add-Log "Waiting for server to come online" -File $global:LogFile
+                        start-sleep -s 5; 
                     }
                 }
             }
@@ -511,7 +515,7 @@ Function Start-ClusterXML{
                 if($Server.HostName -eq $ClusterOwner){
                     #Move cluster off this node for reboots to occur.
                     Try{
-                        'Move-ClusterGroup -Name $($Device.ResourceName) -ErrorAction Stop'
+                        Move-ClusterGroup -Name $($Device.ResourceName) -ErrorAction Stop
                         $ClusterOwner = Get-Cluster -Name $($Device.ClusterName) | Get-ClusterGroup -Name $($Device.ResourceName) | Select-Object -ExpandProperty OwnerNode 
                     }catch{
                         $formatstring = "{0} : {1}`n{2}`n" +
@@ -527,7 +531,7 @@ Function Start-ClusterXML{
                         Add-Log -StringInput "" -File $Global:Logfile -Action 3
                     }
                 }else{
-                    'Start-ServerXML $Server'
+                    Start-ServerXML $Server
                 }
                 $clusterNodes."$($Server.HostName)" = "XML Action Carried Out"
             }else{
@@ -562,15 +566,6 @@ Function Start-XMLPatch{
     <#
         .SYNOPSIS
             This Function takes XML files to complete complex patching sequences.
-
-        .DESCRIPTION
-            Start-ServerPatching
-            Author: James Auchterlonie
-            Version: 0.1
-            Last Modified: 09/06/18 7PM
-
-            Changelog:
-            0.1 - 
         .OUTPUTS
             Complete - Patches completed for all servers
             Error - problem with patching
@@ -637,7 +632,7 @@ Function Start-XMLPatch{
                 }
             }
             Default{
-                Add-Log "WARNING: No virtual Server specified. Assuming all servers are physical and may require intervention." -File $global:LogFile -Action 2
+                Add-Log "No virtual Server specified. Assuming all servers are physical and may require intervention." -File $global:LogFile -Action 2
             }
         }
         #Clustering Module for required work.
@@ -670,11 +665,13 @@ Function Start-XMLPatch{
                     Add-Log -StringInput "Passing XML through to Start-ClusterXML" -File $global:LogFile
                     Start-ClusterXML -Cluster $XMLNode
                }elseif($XMLNode.Type -eq "Server"){
-                    Add-Log -StringInput "XML Server Found. Hostname: $($XMLNode.name)" -File $global:LogFile
+                    Add-Log -StringInput "XML Server Found. Hostname: $($XMLNode.HostName)" -File $global:LogFile
                     Add-Log -StringInput "Passing XML through to Start-ServerXML" -File $global:LogFile
                     Start-ServerXML -ServerXML $XMLNode
                }
+               Start-Sleep 60
             }
         }
+        Add-Log -StringInput "Completed Patching using XML File" -File $global:LogFile -Action 4
     }#End of Process 
 }#End of Function
